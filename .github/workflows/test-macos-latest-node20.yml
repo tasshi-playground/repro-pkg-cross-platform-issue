@@ -1,0 +1,44 @@
+name: test-macos-latest-node20
+on:
+  push:
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+
+      - run: mkdir -p bin
+      - run: npx @yao-pkg/pkg@6.9.0 --sea index.js --output bin/cli -t linux-x64,win-x64,macos-arm64
+      - run: node index.js > bin/EXPECTED
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executables
+          path: bin/*
+          retention-days: 1day
+
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: build
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: executables
+      - run: chmod +x ./cli-*
+      - run: ./cli-linux-x64 > ACTUAL
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - run: ./cli-win-x64.exe > ACTUAL
+        if: ${{ matrix.os == 'windows-latest' }}
+      - run: ./cli-macos-arm64 > ACTUAL
+        if: ${{ matrix.os == 'macos-latest' }}
+      - run: diff EXPECTED ACTUAL
